@@ -1,0 +1,41 @@
+# Build results
+bin/
+obj/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# VS Code settings
+.vscode/
+
+# Rider/JetBrains IDE files
+.idea/
+*.sln.iml
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Entity Framework Migrations build artifacts
+Migrations/*Designer.cs
+Migrations/*Snapshot.cs
+
+# NuGet packages
+*.nupkg
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Others
+*.db
+*.sqlite
+
+# Ignore Entity Framework Migrations folder
+Migrations/
