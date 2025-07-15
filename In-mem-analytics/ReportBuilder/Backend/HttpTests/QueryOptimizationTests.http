@@ -1,0 +1,111 @@
+### Query Optimization Tests for ReportBuilder Backend
+### Test SQL query analysis and optimization suggestions
+
+@baseUrl = https://localhost:5001
+@contentType = application/json
+
+### 1. Analyze a query with SELECT * for column projection optimization
+POST {{baseUrl}}/api/query-optimization/analyze
+Content-Type: {{contentType}}
+
+{
+  "queryId": "test-001",
+  "sqlQuery": "SELECT * FROM input_data WHERE status = 'active' AND created_date > '2024-01-01'",
+  "tableName": "user_data",
+  "filePath": "/data/users.parquet",
+  "availableColumns": ["id", "name", "email", "status", "created_date", "updated_date", "metadata"],
+  "validateOptimization": true
+}
+
+### 2. Get quick suggestions for a simple query
+POST {{baseUrl}}/api/query-optimization/quick-suggestions
+Content-Type: {{contentType}}
+
+{
+  "sqlQuery": "SELECT * FROM products WHERE price > 100"
+}
+
+### 3. Optimize file read operation with filter pushdown
+POST {{baseUrl}}/api/query-optimization/optimize-file-read
+Content-Type: {{contentType}}
+
+{
+  "filePath": "/data/sales.parquet",
+  "sqlQuery": "SELECT customer_id, total_amount, order_date FROM input_data WHERE total_amount > 1000 AND order_date >= '2024-01-01'"
+}
+
+### 4. Validate optimization safety
+POST {{baseUrl}}/api/query-optimization/validate-optimization
+Content-Type: {{contentType}}
+
+{
+  "originalQuery": "SELECT * FROM input_data WHERE status = 'active'",
+  "optimizedQuery": "SELECT id, name, status FROM input_data WHERE status = 'active'"
+}
+
+### 5. Get optimization statistics
+GET {{baseUrl}}/api/query-optimization/statistics
+
+### 6. Test complex query with joins (should detect complexity)
+POST {{baseUrl}}/api/query-optimization/analyze
+Content-Type: {{contentType}}
+
+{
+  "queryId": "test-complex-001",
+  "sqlQuery": "SELECT u.id, u.name, p.title, c.name as category FROM users u JOIN posts p ON u.id = p.user_id LEFT JOIN categories c ON p.category_id = c.id WHERE u.status = 'active' AND p.published_date > '2024-01-01'",
+  "tableName": "users",
+  "validateOptimization": true
+}
+
+### 7. Test CSV file optimization (limited pushdown support)
+POST {{baseUrl}}/api/query-optimization/optimize-file-read
+Content-Type: {{contentType}}
+
+{
+  "filePath": "/data/logs.csv",
+  "sqlQuery": "SELECT timestamp, level, message FROM input_data WHERE level = 'ERROR' ORDER BY timestamp DESC LIMIT 1000"
+}
+
+### 8. Test query with aggregation
+POST {{baseUrl}}/api/query-optimization/analyze
+Content-Type: {{contentType}}
+
+{
+  "queryId": "test-agg-001",
+  "sqlQuery": "SELECT category, COUNT(*) as total, AVG(price) as avg_price FROM products WHERE price > 0 GROUP BY category HAVING COUNT(*) > 10",
+  "tableName": "products",
+  "availableColumns": ["id", "name", "category", "price", "description", "created_date"]
+}
+
+### 9. Test optimization with subquery
+POST {{baseUrl}}/api/query-optimization/quick-suggestions
+Content-Type: {{contentType}}
+
+{
+  "sqlQuery": "SELECT * FROM orders WHERE customer_id IN (SELECT id FROM customers WHERE status = 'premium')"
+}
+
+### 10. Test file optimization for unsupported format
+POST {{baseUrl}}/api/query-optimization/optimize-file-read
+Content-Type: {{contentType}}
+
+{
+  "filePath": "/data/config.json",
+  "sqlQuery": "SELECT * FROM input_data"
+}
+
+### Examples of optimized queries that should be generated:
+
+### Original: SELECT * FROM input_data WHERE status = 'active'
+### Optimized: SELECT id, name, email, status FROM input_data WHERE status = 'active'
+
+### Original: parquet_scan('/data/file.parquet') WHERE col1 = 'value'
+### Optimized: parquet_scan('/data/file.parquet', filter='col1 = value', columns=['col1', 'col2'])
+
+### Expected optimization headers in responses:
+### X-Query-Optimizations: 2
+### X-Optimization-Types: ColumnProjection,FilterPushdown
+### X-High-Impact-Optimizations: 1
+### X-Optimized-Query-Available: true
+### X-File-Optimization-Available: true
+### X-Pushdown-Filters: 1

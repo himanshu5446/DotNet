@@ -26,6 +26,10 @@ builder.Services.Configure<BackpressureSettings>(
 builder.Services.Configure<JsonStreamingSettings>(
     builder.Configuration.GetSection(JsonStreamingSettings.SectionName));
 
+// Query optimization settings for automatic SQL analysis and enhancement
+builder.Services.Configure<QueryOptimizationSettings>(
+    builder.Configuration.GetSection(QueryOptimizationSettings.SectionName));
+
 // Configure Azure Blob Storage client for ADLS integration
 // Registered as singleton for connection pooling and optimal performance
 builder.Services.AddSingleton<BlobServiceClient>(provider =>
@@ -59,6 +63,9 @@ builder.Services.AddScoped<IBackpressureStreamingService, BackpressureStreamingS
 // Memory-safe JSON streaming for large dataset processing
 builder.Services.AddScoped<IMemorySafeJsonStreamingService, MemorySafeJsonStreamingService>();
 
+// SQL query optimization service for automatic performance enhancement
+builder.Services.AddScoped<ISqlQueryOptimizerService, SqlQueryOptimizerService>();
+
 // Build the web application with configured services
 var app = builder.Build();
 
@@ -74,6 +81,8 @@ if (app.Environment.IsDevelopment())
 app.UseMiddleware<GlobalExceptionMiddleware>();
 // Memory logging for performance monitoring and resource tracking
 app.UseMiddleware<MemoryLoggingMiddleware>();
+// Query optimization analysis for automatic performance enhancement
+app.UseQueryOptimization();
 // Concurrency throttling to prevent system overload
 app.UseMiddleware<ConcurrencyThrottleMiddleware>();
 
