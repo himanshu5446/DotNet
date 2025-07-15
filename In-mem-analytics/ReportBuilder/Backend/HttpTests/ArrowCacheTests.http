@@ -1,0 +1,145 @@
+### Arrow Columnar Result Cache Tests for ReportBuilder Backend
+### Test Arrow-formatted buffer caching for DuckDB query results
+
+@baseUrl = https://localhost:5001
+@contentType = application/json
+
+### 1. Execute a query with Arrow caching (first execution - cache miss)
+POST {{baseUrl}}/api/query/run
+Content-Type: {{contentType}}
+
+{
+  "sqlQuery": "SELECT customer_id, order_date, total_amount FROM input_data WHERE total_amount > 1000 ORDER BY order_date DESC LIMIT 100",
+  "datasetPath": "/data/orders.parquet",
+  "pageSize": 1000,
+  "timeoutSeconds": 300,
+  "enableMemoryOptimization": true
+}
+
+### 2. Execute the same query again (should be cache hit)
+POST {{baseUrl}}/api/query/run
+Content-Type: {{contentType}}
+
+{
+  "sqlQuery": "SELECT customer_id, order_date, total_amount FROM input_data WHERE total_amount > 1000 ORDER BY order_date DESC LIMIT 100",
+  "datasetPath": "/data/orders.parquet",
+  "pageSize": 1000,
+  "timeoutSeconds": 300,
+  "enableMemoryOptimization": true
+}
+
+### 3. Test cached streaming query execution
+POST {{baseUrl}}/api/query/stream
+Content-Type: {{contentType}}
+
+{
+  "sqlQuery": "SELECT product_name, category, price FROM input_data WHERE price > 50 AND category = 'Electronics'",
+  "datasetPath": "/data/products.csv",
+  "pageSize": 500
+}
+
+### 4. Execute a complex aggregation query (high-priority for caching)
+POST {{baseUrl}}/api/query/run
+Content-Type: {{contentType}}
+
+{
+  "sqlQuery": "SELECT category, COUNT(*) as total_orders, AVG(total_amount) as avg_amount, SUM(total_amount) as total_revenue FROM input_data WHERE order_date >= '2024-01-01' GROUP BY category HAVING COUNT(*) > 100 ORDER BY total_revenue DESC",
+  "datasetPath": "/data/orders.parquet",
+  "pageSize": 1000
+}
+
+### 5. Test cache statistics endpoint
+GET {{baseUrl}}/api/duckdb/cache/statistics
+
+### 6. Test cache refresh (force cache invalidation and re-execution)
+POST {{baseUrl}}/api/query/refresh-cache
+Content-Type: {{contentType}}
+
+{
+  "sqlQuery": "SELECT customer_id, order_date, total_amount FROM input_data WHERE total_amount > 1000 ORDER BY order_date DESC LIMIT 100",
+  "datasetPath": "/data/orders.parquet"
+}
+
+### 7. Test cache preload for frequently accessed queries
+POST {{baseUrl}}/api/query/preload-cache
+Content-Type: {{contentType}}
+
+{
+  "queries": [
+    {
+      "sqlQuery": "SELECT * FROM input_data WHERE status = 'active'",
+      "datasetPath": "/data/users.parquet"
+    },
+    {
+      "sqlQuery": "SELECT category, COUNT(*) FROM input_data GROUP BY category",
+      "datasetPath": "/data/products.csv"
+    },
+    {
+      "sqlQuery": "SELECT DATE_TRUNC('day', order_date) as day, SUM(total_amount) FROM input_data GROUP BY day ORDER BY day",
+      "datasetPath": "/data/orders.parquet"
+    }
+  ]
+}
+
+### 8. Test cache invalidation
+DELETE {{baseUrl}}/api/duckdb/cache/invalidate
+Content-Type: {{contentType}}
+
+{
+  "pattern": "orders*"
+}
+
+### 9. Test non-deterministic query (should not be cached)
+POST {{baseUrl}}/api/query/run
+Content-Type: {{contentType}}
+
+{
+  "sqlQuery": "SELECT *, NOW() as current_time, RANDOM() as random_value FROM input_data LIMIT 10",
+  "datasetPath": "/data/sample.csv"
+}
+
+### 10. Test large result set (may exceed cache limits)
+POST {{baseUrl}}/api/query/run
+Content-Type: {{contentType}}
+
+{
+  "sqlQuery": "SELECT * FROM input_data",
+  "datasetPath": "/data/large_dataset.parquet",
+  "pageSize": 10000
+}
+
+### Expected Cache Headers in Responses:
+### X-Cache-Status: HIT | MISS | DISABLED
+### X-Cache-Fingerprint: [hash]
+### X-Cache-Age: [seconds]
+### X-Cache-Size: [bytes]
+### X-Arrow-Buffer-Size: [bytes]
+
+### Sample Cache Statistics Response:
+### {
+###   "cacheHits": 156,
+###   "cacheMisses": 89,
+###   "cacheWrites": 92,
+###   "hitRate": 0.637,
+###   "memoryEntries": 45,
+###   "memoryUsageBytes": 125829120,
+###   "memoryUsageMB": 120.0,
+###   "uniqueQueries": 78,
+###   "averageEntryAge": "00:12:34",
+###   "lastAccessed": "2024-07-15T14:30:15Z"
+### }
+
+### Test scenarios for cache behavior:
+### 1. Identical queries with same parameters -> Cache HIT
+### 2. Similar queries with different parameters -> Cache MISS
+### 3. Complex aggregation queries -> High priority caching
+### 4. Simple SELECT queries -> Normal priority caching
+### 5. Non-deterministic functions -> No caching
+### 6. Very large results -> Size-based cache eviction
+### 7. TTL expiration -> Automatic cache invalidation
+### 8. Memory pressure -> LRU eviction of low-priority entries
+
+### DuckDB relation_from_arrow_array() integration:
+### When serving from cache, the Arrow buffer is used to create a DuckDB relation:
+### CREATE VIEW cached_result AS SELECT * FROM relation_from_arrow_array([arrow_buffer])
+### Then the original query is executed against this cached relation for consistency.

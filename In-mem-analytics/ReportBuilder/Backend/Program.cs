@@ -8,6 +8,7 @@ using ReportBuilder.Service;
 using ReportBuilder.Infrastructure.Middleware;
 using ReportBuilder.Configuration;
 using Azure.Storage.Blobs;
+using Microsoft.Extensions.Options;
 
 // Create web application builder with command line arguments
 var builder = WebApplication.CreateBuilder(args);
@@ -29,6 +30,10 @@ builder.Services.Configure<JsonStreamingSettings>(
 // Query optimization settings for automatic SQL analysis and enhancement
 builder.Services.Configure<QueryOptimizationSettings>(
     builder.Configuration.GetSection(QueryOptimizationSettings.SectionName));
+
+// Arrow cache settings for columnar result caching with TTL management
+builder.Services.Configure<ArrowCacheSettings>(
+    builder.Configuration.GetSection(ArrowCacheSettings.SectionName));
 
 // Configure Azure Blob Storage client for ADLS integration
 // Registered as singleton for connection pooling and optimal performance
@@ -65,6 +70,50 @@ builder.Services.AddScoped<IMemorySafeJsonStreamingService, MemorySafeJsonStream
 
 // SQL query optimization service for automatic performance enhancement
 builder.Services.AddScoped<ISqlQueryOptimizerService, SqlQueryOptimizerService>();
+
+// Arrow columnar result caching services for high-performance query result storage
+// Memory cache is singleton, Arrow cache service is scoped for request-level operations
+builder.Services.AddMemoryCache(options =>
+{
+    options.SizeLimit = 500 * 1024 * 1024; // 500MB memory cache limit
+});
+builder.Services.AddScoped<IArrowCacheService, ArrowCacheService>(provider =>
+{
+    var memoryCache = provider.GetRequiredService<IMemoryCache>();
+    var logger = provider.GetRequiredService<ILogger<ArrowCacheService>>();
+    var settings = provider.GetRequiredService<IOptions<ArrowCacheSettings>>().Value;
+    
+    var config = new ArrowCacheConfiguration
+    {
+        UseDistributedCache = settings.UseDistributedCache,
+        DefaultTtl = settings.DefaultCacheTtl,
+        MaxEntrySizeBytes = settings.MaxEntrySizeBytes,
+        CacheVersion = settings.CacheVersion
+    };
+    
+    return new ArrowCacheService(memoryCache, logger, config);
+});
+
+// Enhanced DuckDB service with integrated Arrow caching
+builder.Services.AddScoped<ICachedDuckDbService, CachedDuckDbService>(provider =>
+{
+    var cacheService = provider.GetRequiredService<IArrowCacheService>();
+    var duckDbService = provider.GetRequiredService<IDuckDbQueryService>();
+    var logger = provider.GetRequiredService<ILogger<CachedDuckDbService>>();
+    var settings = provider.GetRequiredService<IOptions<ArrowCacheSettings>>().Value;
+    
+    var config = new CachedDuckDbConfiguration
+    {
+        EnableCaching = settings.EnableCaching,
+        DefaultCacheTtl = settings.DefaultCacheTtl,
+        MinQueryLengthForCaching = settings.MinQueryLengthForCaching,
+        MaxQueryLengthForCaching = settings.MaxQueryLengthForCaching,
+        MaxRowsForCaching = settings.MaxRowsForCaching,
+        MaxCacheSizeBytes = settings.MaxTotalCacheSizeBytes
+    };
+    
+    return new CachedDuckDbService(cacheService, duckDbService, logger, config);
+});
 
 // Build the web application with configured services
 var app = builder.Build();
