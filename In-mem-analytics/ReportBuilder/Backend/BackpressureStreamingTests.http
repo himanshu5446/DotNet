@@ -1,0 +1,59 @@
+### Test Backpressure Streaming API
+### This file contains HTTP requests to test the backpressure streaming functionality
+
+### 1. Test normal streaming with backpressure control
+POST https://localhost:7034/api/BackpressureStreaming/stream
+Content-Type: application/json
+
+{
+  "datasetPath": "sample-data.csv",
+  "query": "SELECT * FROM dataset LIMIT 1000",
+  "pageSize": 100
+}
+
+### 2. Test streaming with throttling (slow consumer simulation)
+POST https://localhost:7034/api/BackpressureStreaming/stream-with-throttle
+Content-Type: application/json
+
+{
+  "datasetPath": "sample-data.csv",
+  "query": "SELECT * FROM dataset LIMIT 100",
+  "pageSize": 50
+}
+
+### 3. Test slow consumer endpoint
+GET https://localhost:7034/api/BackpressureStreaming/test-slow-consumer
+
+### Test scenarios to demonstrate backpressure features:
+
+### 4. Large dataset to trigger memory monitoring
+POST https://localhost:7034/api/BackpressureStreaming/stream
+Content-Type: application/json
+
+{
+  "datasetPath": "large-dataset.parquet",
+  "query": "SELECT * FROM dataset",
+  "pageSize": 1000
+}
+
+### 5. Test with cancellation (cancel this request after a few seconds)
+POST https://localhost:7034/api/BackpressureStreaming/stream
+Content-Type: application/json
+
+{
+  "datasetPath": "sample-data.csv",
+  "query": "SELECT * FROM dataset ORDER BY id",
+  "pageSize": 10
+}
+
+### 6. Test projection and filtering
+POST https://localhost:7034/api/BackpressureStreaming/stream
+Content-Type: application/json
+
+{
+  "datasetPath": "sample-data.csv",
+  "query": "SELECT id, name, value FROM dataset WHERE value > 100",
+  "projection": "id, name, value",
+  "filter": "value > 100",
+  "pageSize": 50
+}

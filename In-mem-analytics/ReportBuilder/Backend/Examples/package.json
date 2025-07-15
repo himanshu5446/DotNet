@@ -1,0 +1,26 @@
+{
+  "name": "reportbuilder-arrow-client",
+  "version": "1.0.0",
+  "description": "JavaScript client for consuming Arrow IPC streams from ReportBuilder API",
+  "main": "javascript_arrow_client.js",
+  "scripts": {
+    "test": "node javascript_arrow_client.js",
+    "install-deps": "npm install apache-arrow node-fetch"
+  },
+  "dependencies": {
+    "apache-arrow": "^15.0.0",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0"
+  },
+  "keywords": [
+    "arrow",
+    "analytics",
+    "duckdb",
+    "streaming",
+    "ipc"
+  ],
+  "author": "ReportBuilder",
+  "license": "MIT"
+}

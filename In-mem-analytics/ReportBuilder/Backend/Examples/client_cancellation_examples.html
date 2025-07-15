@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReportBuilder - Query Cancellation Examples</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1, h2 { color: #333; }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 80px;
+            resize: vertical;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .status.success { background-color: #d4edda; color: #155724; }
+        .status.error { background-color: #f8d7da; color: #721c24; }
+        .status.info { background-color: #d1ecf1; color: #0c5460; }
+        .status.warning { background-color: #fff3cd; color: #856404; }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #007bff;
+            transition: width 0.3s ease;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>ReportBuilder - Query Cancellation Examples</h1>
+    
+    <!-- Example 1: Basic Arrow Stream with Cancel -->
+    <div class="container">
+        <h2>1. Arrow Stream Query with Cancellation</h2>
+        <div class="form-group">
+            <label for="arrowQuery">SQL Query:</label>
+            <textarea id="arrowQuery" placeholder="SELECT * FROM data_table WHERE amount > 100">SELECT * FROM data_table WHERE amount > 100</textarea>
+        </div>
+        <div class="form-group">
+            <label for="arrowFilePath">File Path:</label>
+            <input type="text" id="arrowFilePath" placeholder="/path/to/data.csv" value="/tmp/test_data.csv">
+        </div>
+        <div class="form-group">
+            <label for="arrowFormat">File Format:</label>
+            <select id="arrowFormat">
+                <option value="Auto">Auto</option>
+                <option value="Csv">CSV</option>
+                <option value="Parquet">Parquet</option>
+                <option value="Arrow">Arrow</option>
+            </select>
+        </div>
+        <div class="button-group">
+            <button id="executeArrowBtn" class="btn-primary">Execute Arrow Query</button>
+            <button id="cancelArrowBtn" class="btn-danger" disabled>Cancel Query</button>
+            <button id="validateArrowBtn" class="btn-secondary">Validate Query</button>
+        </div>
+        <div class="progress" id="arrowProgress" style="display: none;">
+            <div class="progress-bar" id="arrowProgressBar"></div>
+        </div>
+        <div id="arrowStatus"></div>
+        <div id="arrowLog" class="log" style="display: none;"></div>
+    </div>
+
+    <!-- Example 2: Paginated Query with Cancel -->
+    <div class="container">
+        <h2>2. Paginated Query with Cancellation</h2>
+        <div class="form-group">
+            <label for="pageQuery">SQL Query:</label>
+            <textarea id="pageQuery" placeholder="SELECT * FROM data_table ORDER BY amount DESC">SELECT * FROM data_table ORDER BY amount DESC</textarea>
+        </div>
+        <div class="form-group">
+            <label for="pageFilePath">File Path:</label>
+            <input type="text" id="pageFilePath" placeholder="/path/to/data.csv" value="/tmp/test_data.csv">
+        </div>
+        <div class="form-group">
+            <label for="pageSize">Page Size:</label>
+            <input type="number" id="pageSize" value="1000" min="1" max="10000">
+        </div>
+        <div class="button-group">
+            <button id="executePaginatedBtn" class="btn-primary">Execute Paginated Query</button>
+            <button id="cancelPaginatedBtn" class="btn-danger" disabled>Cancel Query</button>
+        </div>
+        <div id="paginatedStatus"></div>
+    </div>
+
+    <!-- Example 3: Multiple Concurrent Queries -->
+    <div class="container">
+        <h2>3. Multiple Concurrent Queries with Selective Cancellation</h2>
+        <div class="button-group">
+            <button id="startMultipleBtn" class="btn-primary">Start 3 Concurrent Queries</button>
+            <button id="cancelAllBtn" class="btn-danger" disabled>Cancel All</button>
+        </div>
+        <div id="query1Status"></div>
+        <div id="query2Status"></div>
+        <div id="query3Status"></div>
+    </div>
+
+    <script>
+        // Global AbortController instances
+        let arrowController = null;
+        let paginatedController = null;
+        let multipleControllers = [];
+
+        // Utility functions
+        function showStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function log(elementId, message) {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            element.textContent += `[${new Date().toLocaleTimeString()}] ${message}\n`;
+            element.scrollTop = element.scrollHeight;
+        }
+
+        function updateProgress(percent) {
+            document.getElementById('arrowProgress').style.display = 'block';
+            document.getElementById('arrowProgressBar').style.width = `${percent}%`;
+        }
+
+        // Example 1: Arrow Stream Query
+        document.getElementById('executeArrowBtn').addEventListener('click', async () => {
+            const query = document.getElementById('arrowQuery').value;
+            const filePath = document.getElementById('arrowFilePath').value;
+            const fileFormat = document.getElementById('arrowFormat').value;
+
+            if (!query || !filePath) {
+                showStatus('arrowStatus', 'Please fill in all required fields', 'error');
+                return;
+            }
+
+            // Create new AbortController
+            arrowController = new AbortController();
+
+            // Update UI
+            document.getElementById('executeArrowBtn').disabled = true;
+            document.getElementById('cancelArrowBtn').disabled = false;
+            document.getElementById('arrowLog').style.display = 'block';
+            document.getElementById('arrowLog').textContent = '';
+
+            showStatus('arrowStatus', 'Starting Arrow query execution...', 'info');
+            log('arrowLog', 'Preparing Arrow stream request...');
+
+            try {
+                const requestBody = {
+                    sqlQuery: query,
+                    filePath: filePath,
+                    fileFormat: fileFormat,
+                    timeoutSeconds: 300,
+                    includeMetadata: true,
+                    enableMemoryLogging: true
+                };
+
+                log('arrowLog', `Request: ${JSON.stringify(requestBody, null, 2)}`);
+                updateProgress(10);
+
+                const response = await fetch('/api/ArrowStream/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/vnd.apache.arrow.stream'
+                    },
+                    body: JSON.stringify(requestBody),
+                    signal: arrowController.signal
+                });
+
+                updateProgress(30);
+                log('arrowLog', `Response status: ${response.status} ${response.statusText}`);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+
+                updateProgress(50);
+
+                // Read response headers
+                const headers = {};
+                response.headers.forEach((value, key) => {
+                    headers[key] = value;
+                });
+                log('arrowLog', `Response headers: ${JSON.stringify(headers, null, 2)}`);
+
+                updateProgress(70);
+
+                // Read Arrow data
+                const reader = response.body.getReader();
+                const chunks = [];
+                let receivedLength = 0;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    
+                    if (done) break;
+                    
+                    chunks.push(value);
+                    receivedLength += value.length;
+                    
+                    log('arrowLog', `Received chunk: ${value.length} bytes (total: ${receivedLength})`);
+                    updateProgress(70 + (receivedLength / 100000) * 20); // Estimate progress
+                }
+
+                updateProgress(100);
+                log('arrowLog', `Arrow stream completed. Total bytes: ${receivedLength}`);
+                showStatus('arrowStatus', `Arrow query completed successfully! Received ${receivedLength} bytes`, 'success');
+
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    log('arrowLog', '[CANCELLED] Query was cancelled by user');
+                    showStatus('arrowStatus', '[CANCELLED] Query was cancelled by user', 'warning');
+                } else {
+                    log('arrowLog', `Error: ${error.message}`);
+                    showStatus('arrowStatus', `Error: ${error.message}`, 'error');
+                }
+            } finally {
+                // Reset UI
+                document.getElementById('executeArrowBtn').disabled = false;
+                document.getElementById('cancelArrowBtn').disabled = true;
+                arrowController = null;
+                updateProgress(0);
+                document.getElementById('arrowProgress').style.display = 'none';
+            }
+        });
+
+        document.getElementById('cancelArrowBtn').addEventListener('click', () => {
+            if (arrowController) {
+                arrowController.abort();
+                log('arrowLog', '[USER ACTION] Cancellation requested');
+                showStatus('arrowStatus', 'Cancelling query...', 'warning');
+            }
+        });
+
+        document.getElementById('validateArrowBtn').addEventListener('click', async () => {
+            const query = document.getElementById('arrowQuery').value;
+            const filePath = document.getElementById('arrowFilePath').value;
+            const fileFormat = document.getElementById('arrowFormat').value;
+
+            try {
+                const response = await fetch('/api/ArrowStream/validate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sqlQuery: query,
+                        filePath: filePath,
+                        fileFormat: fileFormat
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showStatus('arrowStatus', `Query validation successful! Estimated ${result.estimatedSizeInfo?.estimatedRows || 'unknown'} rows`, 'success');
+                } else {
+                    showStatus('arrowStatus', `Validation failed: ${result.errorMessage}`, 'error');
+                }
+            } catch (error) {
+                showStatus('arrowStatus', `Validation error: ${error.message}`, 'error');
+            }
+        });
+
+        // Example 2: Paginated Query
+        document.getElementById('executePaginatedBtn').addEventListener('click', async () => {
+            const query = document.getElementById('pageQuery').value;
+            const filePath = document.getElementById('pageFilePath').value;
+            const pageSize = document.getElementById('pageSize').value;
+
+            paginatedController = new AbortController();
+
+            document.getElementById('executePaginatedBtn').disabled = true;
+            document.getElementById('cancelPaginatedBtn').disabled = false;
+
+            showStatus('paginatedStatus', 'Starting paginated query execution...', 'info');
+
+            try {
+                const response = await fetch('/api/PaginatedQuery/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sqlQuery: query,
+                        filePath: filePath,
+                        fileFormat: 'Auto',
+                        pageNumber: 1,
+                        pageSize: parseInt(pageSize),
+                        includeTotalCount: true
+                    }),
+                    signal: paginatedController.signal
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showStatus('paginatedStatus', `Paginated query completed! Page 1 of ${result.pagination?.totalPages || 'unknown'}`, 'success');
+                } else {
+                    showStatus('paginatedStatus', `Error: ${result.errorMessage}`, 'error');
+                }
+
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    showStatus('paginatedStatus', '[CANCELLED] Paginated query was cancelled', 'warning');
+                } else {
+                    showStatus('paginatedStatus', `Error: ${error.message}`, 'error');
+                }
+            } finally {
+                document.getElementById('executePaginatedBtn').disabled = false;
+                document.getElementById('cancelPaginatedBtn').disabled = true;
+                paginatedController = null;
+            }
+        });
+
+        document.getElementById('cancelPaginatedBtn').addEventListener('click', () => {
+            if (paginatedController) {
+                paginatedController.abort();
+                showStatus('paginatedStatus', 'Cancelling paginated query...', 'warning');
+            }
+        });
+
+        // Example 3: Multiple Concurrent Queries
+        document.getElementById('startMultipleBtn').addEventListener('click', async () => {
+            document.getElementById('startMultipleBtn').disabled = true;
+            document.getElementById('cancelAllBtn').disabled = false;
+
+            // Reset controllers
+            multipleControllers = [
+                new AbortController(),
+                new AbortController(),
+                new AbortController()
+            ];
+
+            const queries = [
+                { query: 'SELECT COUNT(*) FROM data_table', status: 'query1Status' },
+                { query: 'SELECT AVG(amount) FROM data_table', status: 'query2Status' },
+                { query: 'SELECT MAX(amount), MIN(amount) FROM data_table', status: 'query3Status' }
+            ];
+
+            // Start all queries concurrently
+            const promises = queries.map(async (queryInfo, index) => {
+                try {
+                    showStatus(queryInfo.status, `Query ${index + 1}: Starting...`, 'info');
+
+                    const response = await fetch('/api/ArrowStream/validate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sqlQuery: queryInfo.query,
+                            filePath: '/tmp/test_data.csv',
+                            fileFormat: 'Csv'
+                        }),
+                        signal: multipleControllers[index].signal
+                    });
+
+                    // Simulate processing time
+                    await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
+
+                    const result = await response.json();
+                    
+                    if (response.ok) {
+                        showStatus(queryInfo.status, `Query ${index + 1}: Completed successfully`, 'success');
+                    } else {
+                        showStatus(queryInfo.status, `Query ${index + 1}: Failed - ${result.errorMessage}`, 'error');
+                    }
+
+                } catch (error) {
+                    if (error.name === 'AbortError') {
+                        showStatus(queryInfo.status, `Query ${index + 1}: [CANCELLED]`, 'warning');
+                    } else {
+                        showStatus(queryInfo.status, `Query ${index + 1}: Error - ${error.message}`, 'error');
+                    }
+                }
+            });
+
+            // Wait for all queries to complete or be cancelled
+            await Promise.allSettled(promises);
+
+            // Reset UI
+            document.getElementById('startMultipleBtn').disabled = false;
+            document.getElementById('cancelAllBtn').disabled = true;
+            multipleControllers = [];
+        });
+
+        document.getElementById('cancelAllBtn').addEventListener('click', () => {
+            multipleControllers.forEach((controller, index) => {
+                if (controller) {
+                    controller.abort();
+                    showStatus(`query${index + 1}Status`, `Query ${index + 1}: Cancelling...`, 'warning');
+                }
+            });
+        });
+
+        // Auto-create test data on page load
+        window.addEventListener('load', async () => {
+            try {
+                // Try to create test data file for demos
+                const testData = `customer_id,amount,order_date,region
+1,150.50,2023-01-15,West
+2,75.25,2023-01-16,East
+3,200.00,2023-01-17,West
+4,90.75,2023-01-18,Central
+5,125.00,2023-01-19,East`;
+
+                console.log('Demo page loaded. Test data ready for examples.');
+                console.log('Note: Update file paths to actual files on your server for real testing.');
+            } catch (error) {
+                console.warn('Could not set up test data:', error.message);
+            }
+        });
+    </script>
+</body>
+</html>

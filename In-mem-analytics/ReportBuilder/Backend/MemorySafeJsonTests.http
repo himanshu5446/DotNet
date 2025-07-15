@@ -1,0 +1,119 @@
+### Memory-Safe JSON Streaming API Tests
+### This file contains HTTP requests to test memory-safe JSON serialization
+
+### 1. Test standard JSON streaming with array format
+POST https://localhost:7034/api/MemorySafeJson/stream-json
+Content-Type: application/json
+
+{
+  "datasetPath": "sample-data.csv",
+  "query": "SELECT * FROM dataset LIMIT 1000",
+  "pageSize": 100
+}
+
+### 2. Test NDJSON streaming (newline-delimited JSON)
+POST https://localhost:7034/api/MemorySafeJson/stream-ndjson
+Content-Type: application/json
+
+{
+  "datasetPath": "sample-data.csv",
+  "query": "SELECT * FROM dataset LIMIT 500",
+  "pageSize": 50
+}
+
+### 3. Test chunked JSON streaming with HTTP chunked transfer encoding
+POST https://localhost:7034/api/MemorySafeJson/stream-json-chunked
+Content-Type: application/json
+
+{
+  "datasetPath": "sample-data.csv",
+  "query": "SELECT * FROM dataset LIMIT 100",
+  "pageSize": 25
+}
+
+### 4. Test large dataset generation (for memory pressure testing)
+GET https://localhost:7034/api/MemorySafeJson/test-large-dataset?rowCount=10000&fieldCount=20&includeBlobs=false
+
+### 5. Test large dataset with binary data (blob handling)
+GET https://localhost:7034/api/MemorySafeJson/test-large-dataset?rowCount=1000&fieldCount=15&includeBlobs=true
+
+### 6. Test very large dataset to trigger memory monitoring
+GET https://localhost:7034/api/MemorySafeJson/test-large-dataset?rowCount=100000&fieldCount=30&includeBlobs=false
+
+### Memory stress test scenarios:
+
+### 7. Large result set with projection and filtering
+POST https://localhost:7034/api/MemorySafeJson/stream-ndjson
+Content-Type: application/json
+
+{
+  "datasetPath": "large-dataset.parquet",
+  "query": "SELECT id, name, description, value FROM dataset WHERE value > 1000 ORDER BY value DESC",
+  "projection": "id, name, description, value",
+  "filter": "value > 1000",
+  "pageSize": 1000
+}
+
+### 8. Test JSON streaming with potential serialization errors
+POST https://localhost:7034/api/MemorySafeJson/stream-json
+Content-Type: application/json
+
+{
+  "datasetPath": "complex-data.csv",
+  "query": "SELECT * FROM dataset",
+  "pageSize": 100
+}
+
+### 9. Test cancellation with large dataset (cancel this request after a few seconds)
+POST https://localhost:7034/api/MemorySafeJson/stream-ndjson
+Content-Type: application/json
+
+{
+  "datasetPath": "sample-data.csv",
+  "query": "SELECT * FROM dataset ORDER BY id",
+  "pageSize": 10
+}
+
+### Performance comparison tests:
+
+### 10. Small batch size for high responsiveness
+POST https://localhost:7034/api/MemorySafeJson/stream-ndjson
+Content-Type: application/json
+
+{
+  "datasetPath": "sample-data.csv",
+  "query": "SELECT * FROM dataset LIMIT 5000",
+  "pageSize": 1
+}
+
+### 11. Large batch size for throughput
+POST https://localhost:7034/api/MemorySafeJson/stream-ndjson
+Content-Type: application/json
+
+{
+  "datasetPath": "sample-data.csv",
+  "query": "SELECT * FROM dataset LIMIT 5000",
+  "pageSize": 1000
+}
+
+### Edge case tests:
+
+### 12. Empty result set
+POST https://localhost:7034/api/MemorySafeJson/stream-json
+Content-Type: application/json
+
+{
+  "datasetPath": "sample-data.csv",
+  "query": "SELECT * FROM dataset WHERE 1=0",
+  "pageSize": 100
+}
+
+### 13. Single row result
+POST https://localhost:7034/api/MemorySafeJson/stream-ndjson
+Content-Type: application/json
+
+{
+  "datasetPath": "sample-data.csv",
+  "query": "SELECT * FROM dataset LIMIT 1",
+  "pageSize": 1
+}
